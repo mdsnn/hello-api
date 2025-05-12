@@ -1,5 +1,8 @@
 
 
-### Get all users
+### 
 GET http://127.0.0.1:8000/greet
+
+### Get all users
+GET http://127.0.0.1:8000/users/2
 
