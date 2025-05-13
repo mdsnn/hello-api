@@ -1,10 +1,10 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from sqlmodel import SQLModel, Field, Session, create_engine, select
-from typing import List
+from typing import List, Annotated
 from contextlib import asynccontextmanager
 
 # FastAPI app
-app = FastAPI(title="SQLModel Todo List API")
+app = FastAPI(title="Todo List with Dependency Injection API")
 
 # SQLModel model for Todo (database and Pydantic)
 class Todo(SQLModel, table=True):
@@ -31,13 +31,16 @@ async def lifespan(app: FastAPI):
 
 app.lifespan = lifespan
 
-# Dependency to get database session
+# Dependency for database session
 def get_session():
     with Session(engine) as session:
         yield session
 
+# Annotated dependency for injection
+SessionDep = Annotated[Session, Depends(get_session)]
+
 @app.post("/todos", response_model=Todo)
-async def create_todo(todo: TodoCreate, session: Session = get_session()):
+async def create_todo(todo: TodoCreate, session: SessionDep):
     db_todo = Todo.from_orm(todo)
     session.add(db_todo)
     session.commit()
@@ -45,19 +48,19 @@ async def create_todo(todo: TodoCreate, session: Session = get_session()):
     return db_todo
 
 @app.get("/todos", response_model=List[Todo])
-async def get_todos(session: Session = get_session()):
+async def get_todos(session: SessionDep):
     todos = session.exec(select(Todo)).all()
     return todos
 
 @app.get("/todos/{todo_id}", response_model=Todo)
-async def get_todo(todo_id: int, session: Session = get_session()):
+async def get_todo(todo_id: int, session: SessionDep):
     todo = session.get(Todo, todo_id)
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
     return todo
 
 @app.put("/todos/{todo_id}", response_model=Todo)
-async def update_todo(todo_id: int, todo: TodoCreate, session: Session = get_session()):
+async def update_todo(todo_id: int, todo: TodoCreate, session: SessionDep):
     db_todo = session.get(Todo, todo_id)
     if not db_todo:
         raise HTTPException(status_code=404, detail="Todo not found")
@@ -69,7 +72,7 @@ async def update_todo(todo_id: int, todo: TodoCreate, session: Session = get_ses
     return db_todo
 
 @app.delete("/todos/{todo_id}")
-async def delete_todo(todo_id: int, session: Session = get_session()):
+async def delete_todo(todo_id: int, session: SessionDep):
     todo = session.get(Todo, todo_id)
     if not todo:
         raise HTTPException(status_code=404, detail="Todo not found")
